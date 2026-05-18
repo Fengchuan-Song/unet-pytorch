@@ -478,7 +478,7 @@ if __name__ == "__main__":
         #----------------------#
         if local_rank == 0:
             eval_callback   = EvalCallback(net=model, input_shape=input_shape, num_classes=num_classes, image_ids=val_lines, dataset_path=VOCdevkit_path,
-                                           log_dir=log_dir, cuda=Cuda, train_name=args.wandb_name, eval_flag=eval_flag, period=eval_period)
+                                           log_dir=log_dir, cuda=Cuda, train_name=args.wandb_name, eval_flag=eval_flag, period=eval_period, local_rank=local_rank)
         else:
             eval_callback   = None
         
