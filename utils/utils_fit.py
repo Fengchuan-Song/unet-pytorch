@@ -10,7 +10,7 @@ from utils.utils_metrics import f_score, mIoU
 import wandb
 
 
-def fit_one_epoch(model_train, model, loss_history, eval_callback, optimizer, epoch, epoch_step, epoch_step_val, gen, gen_val, Epoch, cuda, dice_loss, focal_loss, cls_weights, num_classes, fp16, scaler, save_period, save_dir, weight_save_dir, local_rank=0):
+def fit_one_epoch(model_train, model, loss_history, eval_callback, optimizer, epoch, epoch_step, epoch_step_val, gen, gen_val, Epoch, cuda, dice_loss, focal_loss, cls_weights, num_classes, fp16, scaler, save_period, save_dir, local_rank=0, weight_save_dir=None):
     total_loss      = 0
     total_f_score   = 0
     total_miou      = 0
