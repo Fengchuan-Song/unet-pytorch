@@ -163,6 +163,14 @@ def fit_one_epoch(model_train, model, loss_history, eval_callback, optimizer, ep
         # eval_callback.on_epoch_end(epoch + 1, model_train)
         print('Epoch:'+ str(epoch+1) + '/' + str(Epoch))
         print('Total Loss: %.3f || Val Loss: %.3f ' % (total_loss / epoch_step, val_loss / epoch_step_val))
+        wandb.log({
+            'epoch': epoch,
+            'se seg loss': total_loss / epoch_step,
+            'mIoU se(train)': total_miou / epoch_step,
+            'lr': get_lr(optimizer),
+            'se seg val_loss': val_loss / epoch_step_val,
+            'mIoU se(eval)': val_miou / epoch_step_val,             
+        })
         
         #-----------------------------------------------#
         #   保存权值
