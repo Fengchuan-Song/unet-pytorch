@@ -8,10 +8,12 @@ import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 import torch.optim as optim
 from torch.utils.data import DataLoader
+import wandb
+import argparse
 
 from nets.unet import Unet
 from nets.unet_training import get_lr_scheduler, set_optimizer_lr, weights_init
-from utils.callbacks import EvalCallback, LossHistory
+from utils.callbacks_v2 import EvalCallback, LossHistory
 from utils.dataloader import UnetDataset, unet_dataset_collate
 from utils.utils import (download_weights, seed_everything, show_config,
                          worker_init_fn)
@@ -38,6 +40,25 @@ from utils.utils_fit import fit_one_epoch
    如果只是训练了几个Step是不会保存的，Epoch和Step的概念要捋清楚一下。
 '''
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--save_dir", type=str, default='/data/UNet')
+    parser.add_argument('--wandb_path', type=str, default='/data/UNet/wandb', help='path of saving wandb files locally')
+    parser.add_argument('--wandb_name', type=str, default='U-Net',
+                        help='name of current training procedure of wandb')
+    parser.add_argument('--description', type=str, default=
+                        'Achelous++ with uncertainty aware cross attention for fusion(vision only), ' \
+                        # 'baseline of Achelous++' \
+    'cross-attention with soft gate, ' \
+    'the fused features are both inputed into detection and segmentation branches. ' \
+    'Introduce pixel-wise uncertainty maps into loss calculation of YOLO Loss instead of mean'
+    'training from scratch, test training, ' \
+    'four channels of radar features(range, elevation, velocity, and power),' \
+    # 'without pier class' \
+    '',
+                        help='version description of the being trained model')
+
+    args = parser.parse_args()
+
     #---------------------------------#
     #   Cuda    是否使用Cuda
     #           没有GPU可以设置成False
@@ -105,11 +126,11 @@ if __name__ == "__main__":
     #   一般来讲，网络从0开始的训练效果会很差，因为权值太过随机，特征提取效果不明显，因此非常、非常、非常不建议大家从0开始训练！
     #   如果一定要从0开始，可以了解imagenet数据集，首先训练分类模型，获得网络的主干部分权值，分类模型的 主干部分 和该模型通用，基于此进行训练。
     #----------------------------------------------------------------------------------------------------------------------------#
-    model_path  = "model_data/unet_vgg_voc.pth"
+    model_path  = ""
     #-----------------------------------------------------#
     #   input_shape     输入图片的大小，32的倍数
     #-----------------------------------------------------#
-    input_shape = [512, 512]
+    input_shape = [320, 320]
     
     #----------------------------------------------------------------------------------------------------------------------------#
     #   训练分为两个阶段，分别是冻结阶段和解冻阶段。设置冻结阶段是为了满足机器性能不足的同学的训练需求。
@@ -154,7 +175,7 @@ if __name__ == "__main__":
     #                       (当Freeze_Train=False时失效)
     #------------------------------------------------------------------#
     Init_Epoch          = 0
-    Freeze_Epoch        = 50
+    Freeze_Epoch        = 0
     Freeze_batch_size   = 2
     #------------------------------------------------------------------#
     #   解冻阶段训练参数
@@ -164,12 +185,12 @@ if __name__ == "__main__":
     #   Unfreeze_batch_size     模型在解冻后的batch_size
     #------------------------------------------------------------------#
     UnFreeze_Epoch      = 100
-    Unfreeze_batch_size = 2
+    Unfreeze_batch_size = 16
     #------------------------------------------------------------------#
     #   Freeze_Train    是否进行冻结训练
     #                   默认先冻结主干训练后解冻训练。
     #------------------------------------------------------------------#
-    Freeze_Train        = True
+    Freeze_Train        = False
 
     #------------------------------------------------------------------#
     #   其它训练参数：学习率、优化器、学习率下降有关
@@ -204,7 +225,10 @@ if __name__ == "__main__":
     #------------------------------------------------------------------#
     #   save_dir        权值与日志文件保存的文件夹
     #------------------------------------------------------------------#
-    save_dir            = 'logs'
+    save_dir            = '/data/UNet'
+    weight_save_dir = os.path.join(os.path.join(args.save_dir, args.wandb_name), 'weights')
+    if not os.path.exists(weight_save_dir):
+        os.makedirs(weight_save_dir)
     #------------------------------------------------------------------#
     #   eval_flag       是否在训练时进行评估，评估对象为验证集
     #   eval_period     代表多少个epoch评估一次，不建议频繁的评估
@@ -213,13 +237,13 @@ if __name__ == "__main__":
     #   （一）此处获得的mAP为验证集的mAP。
     #   （二）此处设置评估参数较为保守，目的是加快评估速度。
     #------------------------------------------------------------------#
-    eval_flag           = True
+    eval_flag           = False
     eval_period         = 5
     
     #------------------------------#
     #   数据集路径
     #------------------------------#
-    VOCdevkit_path  = 'VOCdevkit'
+    VOCdevkit_path  = '/data_ssd/datasets/WaterScenes'
     #------------------------------------------------------------------#
     #   建议选项：
     #   种类少（几类）时，设置为True
@@ -246,6 +270,17 @@ if __name__ == "__main__":
     #                   在IO为瓶颈的时候再开启多线程，即GPU运算速度远大于读取图片的速度。
     #------------------------------------------------------------------#
     num_workers     = 4
+
+    wandb.init(
+        project='Achelous++',
+        name=args.wandb_name,
+        dir=args.wandb_path,
+        config={
+            "model_description": args.description,
+            "architecture": "Origin",
+            "dataset": "WaterSence",
+        }
+    )
 
     seed_everything(seed)
     #------------------------------------------------------#
@@ -352,9 +387,9 @@ if __name__ == "__main__":
     #---------------------------#
     #   读取数据集对应的txt
     #---------------------------#
-    with open(os.path.join(VOCdevkit_path, "VOC2007/ImageSets/Segmentation/train.txt"),"r") as f:
+    with open(os.path.join(VOCdevkit_path, "MIPC_SemanticSegmentation/2007_train.txt"),"r") as f:
         train_lines = f.readlines()
-    with open(os.path.join(VOCdevkit_path, "VOC2007/ImageSets/Segmentation/val.txt"),"r") as f:
+    with open(os.path.join(VOCdevkit_path, "MIPC_SemanticSegmentation/2007_val.txt"),"r") as f:
         val_lines = f.readlines()
     num_train   = len(train_lines)
     num_val     = len(val_lines)
@@ -497,7 +532,8 @@ if __name__ == "__main__":
             set_optimizer_lr(optimizer, lr_scheduler_func, epoch)
 
             fit_one_epoch(model_train, model, loss_history, eval_callback, optimizer, epoch, 
-                    epoch_step, epoch_step_val, gen, gen_val, UnFreeze_Epoch, Cuda, dice_loss, focal_loss, cls_weights, num_classes, fp16, scaler, save_period, save_dir, local_rank)
+                    epoch_step, epoch_step_val, gen, gen_val, UnFreeze_Epoch, Cuda, dice_loss, focal_loss, cls_weights, num_classes, fp16, scaler, save_period, save_dir, local_rank,
+                    weight_save_dir=weight_save_dir)
 
             if distributed:
                 dist.barrier()
