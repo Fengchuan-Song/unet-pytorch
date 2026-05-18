@@ -477,8 +477,8 @@ if __name__ == "__main__":
         #   记录eval的map曲线
         #----------------------#
         if local_rank == 0:
-            eval_callback   = EvalCallback(model, input_shape, num_classes, val_lines, VOCdevkit_path, log_dir, Cuda, \
-                                            eval_flag=eval_flag, period=eval_period)
+            eval_callback   = EvalCallback(net=model, input_shape=input_shape, num_classes=num_classes, image_ids=val_lines, dataset_path=VOCdevkit_path,
+                                           log_dir=log_dir, cuda=Cuda, train_name=args.wandb_name, eval_flag=eval_flag, period=eval_period)
         else:
             eval_callback   = None
         

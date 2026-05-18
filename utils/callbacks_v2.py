@@ -93,9 +93,8 @@ class LossHistory():
 
 
 class EvalCallback():
-    def __init__(self, net, input_shape, num_classes, image_ids, dataset_path, log_dir, cuda, radar_path, jpg_path,
-                 local_rank, radar_pc_seg_path, is_radar_pc_seg, radar_pc_seg_features, radar_pc_seg_label, radar_pc_num, train_name,
-                 miou_out_path=".temp_miou_out", eval_flag=True, period=1):
+    def __init__(self, net, input_shape, num_classes, image_ids, dataset_path, log_dir, cuda,
+                 local_rank, train_name, miou_out_path=".temp_miou_out", eval_flag=True, period=1):
         super(EvalCallback, self).__init__()
 
         self.net = net
@@ -108,14 +107,7 @@ class EvalCallback():
         self.miou_out_path = miou_out_path + '_' + train_name
         self.eval_flag = eval_flag
         self.period = period
-        self.radar_path = radar_path
-        self.jpg_path = jpg_path
         self.local_rank = local_rank
-        self.radar_pc_seg_path = radar_pc_seg_path
-        self.is_radar_pc_seg = is_radar_pc_seg
-        self.radar_pc_seg_features = radar_pc_seg_features
-        self.radar_pc_seg_label = radar_pc_seg_label
-        self.radar_pc_num = radar_pc_num
         self.class_name = ["background", "pier", "buoy", "sailor", "ship", "boat", "vessel", "kayak", "free-space"]
         self.object_class_name = ["background", "pier", "buoy", "sailor", "ship", "boat", "vessel", "kayak"]
         self.driverable_area_class_name = ["background", "free-space"]
@@ -129,7 +121,7 @@ class EvalCallback():
                 f.write(str(0))
                 f.write("\n")
 
-    def get_miou_png(self, image, radar_data, image_id):
+    def get_miou_png(self, image):
         # ---------------------------------------------------------#
         #   在这里将图像转换成RGB图像，防止灰度图在预测时报错。
         #   代码仅仅支持RGB图像的预测，所有其它类型的图像都会转化成RGB
@@ -151,35 +143,8 @@ class EvalCallback():
             images = torch.from_numpy(image_data)
             if self.cuda:
                 images = images.cuda(self.local_rank)
-                radar_data = radar_data.cuda(self.local_rank)
 
-            # ---------------------------------------------------#
-            #   图片传入网络进行预测
-            # ---------------------------------------------------#
-            if self.is_radar_pc_seg:
-                # -------------------------------- 麻烦的点云读取 ---------------------------------- #
-                radar_pc_file = pd.read_csv(os.path.join(self.radar_pc_seg_path, image_id + '.csv'), index_col=0)
-                radar_pc_features = radar_pc_file[self.radar_pc_seg_features]
-                radar_pc_labels = radar_pc_file[self.radar_pc_seg_label]
-
-                radar_pc_features = np.asarray(radar_pc_features)
-                radar_pc_labels = np.asarray(radar_pc_labels)
-
-                radar_pc_indexes = np.random.choice(radar_pc_features.shape[0], self.radar_pc_num, replace=True)
-
-                align_radar_pc_features = radar_pc_features[radar_pc_indexes]
-                align_radar_pc_labels = radar_pc_labels[radar_pc_indexes]
-                align_radar_pc_features = normalize(X=align_radar_pc_features, axis=0)
-                align_radar_pc_labels = align_radar_pc_labels
-
-                align_radar_pc_features = torch.from_numpy(np.array(align_radar_pc_features, dtype=np.float32)).type(
-                    torch.FloatTensor).unsqueeze(0).permute(0, 2, 1).cuda(self.local_rank)
-                align_radar_pc_labels = torch.from_numpy(np.array(align_radar_pc_labels, dtype=np.int32)). \
-                    type(torch.LongTensor).cuda(self.local_rank)
-                # --------------------------------------------------------------------------------- #
-                pr = self.net(images, radar_data, align_radar_pc_features)[1][0]
-            else:
-                pr = self.net(images, radar_data)[1][0]
+            pr = self.net(images)[0]
 
             # ---------------------------------------------------#
             #   取出每一个像素点的种类
@@ -245,22 +210,15 @@ class EvalCallback():
                     os.makedirs(temp_dir)
             print("Get miou.")
             for image_id in tqdm(self.image_ids):
-                # ------------------------------#
-                #   读取雷达特征map
-                # ------------------------------#
-                radar_path = os.path.join(self.radar_path, image_id + '.npz')
-                radar_data = np.load(radar_path)['arr_0']
-                radar_data = torch.from_numpy(radar_data).type(torch.cuda.FloatTensor).unsqueeze(0)
-
                 # -------------------------------#
                 #   从文件中读取图像
                 # -------------------------------#
-                image_path = os.path.join(self.jpg_path, image_id + ".jpg")
+                image_path = os.path.join(self.dataset_path, "images/"+image_id+".jpg")
                 image = Image.open(image_path)
                 # ------------------------------#
                 #   获得预测txt
                 # ------------------------------#
-                image = self.get_miou_png(image, radar_data, image_id)
+                image = self.get_miou_png(image)
                 image.save(os.path.join(pred_dir, image_id + ".png"))
 
             print("Calculate miou.")

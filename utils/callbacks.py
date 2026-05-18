@@ -20,61 +20,64 @@ from .utils_metrics import compute_mIoU
 
 
 class LossHistory():
-    def __init__(self, log_dir, model, input_shape, val_loss_flag=True):
-        self.log_dir        = log_dir
-        self.val_loss_flag  = val_loss_flag
+    def __init__(self, log_dir, model, input_shape):
+        self.log_dir = log_dir
+        self.losses = []
+        self.val_loss = []
+        self.miou = []
 
-        self.losses         = []
-        if self.val_loss_flag:
-            self.val_loss   = []
-        
-        os.makedirs(self.log_dir)
-        self.writer     = SummaryWriter(self.log_dir)
+        if os.path.exists(self.log_dir):
+            pass
+        else:
+            os.makedirs(self.log_dir)
+        self.writer = SummaryWriter(self.log_dir)
         try:
-            dummy_input     = torch.randn(2, 3, input_shape[0], input_shape[1])
+            dummy_input = torch.randn(2, 3, input_shape[0], input_shape[1])
             self.writer.add_graph(model, dummy_input)
         except:
             pass
 
-    def append_loss(self, epoch, loss, val_loss = None):
+    def append_loss(self, epoch, loss, val_loss):
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
 
         self.losses.append(loss)
-        if self.val_loss_flag:
-            self.val_loss.append(val_loss)
-        
+        self.val_loss.append(val_loss)
+
         with open(os.path.join(self.log_dir, "epoch_loss.txt"), 'a') as f:
             f.write(str(loss))
             f.write("\n")
-        if self.val_loss_flag:
-            with open(os.path.join(self.log_dir, "epoch_val_loss.txt"), 'a') as f:
-                f.write(str(val_loss))
-                f.write("\n")
-            
+        with open(os.path.join(self.log_dir, "epoch_val_loss.txt"), 'a') as f:
+            f.write(str(val_loss))
+            f.write("\n")
+
         self.writer.add_scalar('loss', loss, epoch)
-        if self.val_loss_flag:
-            self.writer.add_scalar('val_loss', val_loss, epoch)
-            
+        self.writer.add_scalar('val_loss', val_loss, epoch)
         self.loss_plot()
+
+    def append_miou(self, miou):
+        self.miou.append(miou)
+
+        with open(os.path.join(self.log_dir, "val_miou.txt"), 'a') as f:
+            f.write(str(miou))
+            f.write("\n")        
 
     def loss_plot(self):
         iters = range(len(self.losses))
 
         plt.figure()
-        plt.plot(iters, self.losses, 'red', linewidth = 2, label='train loss')
-        if self.val_loss_flag:
-            plt.plot(iters, self.val_loss, 'coral', linewidth = 2, label='val loss')
-            
+        plt.plot(iters, self.losses, 'red', linewidth=2, label='train loss')
+        plt.plot(iters, self.val_loss, 'coral', linewidth=2, label='val loss')
         try:
             if len(self.losses) < 25:
                 num = 5
             else:
                 num = 15
-            
-            plt.plot(iters, scipy.signal.savgol_filter(self.losses, num, 3), 'green', linestyle = '--', linewidth = 2, label='smooth train loss')
-            if self.val_loss_flag:
-                plt.plot(iters, scipy.signal.savgol_filter(self.val_loss, num, 3), '#8B4513', linestyle = '--', linewidth = 2, label='smooth val loss')
+
+            plt.plot(iters, scipy.signal.savgol_filter(self.losses, num, 3), 'green', linestyle='--', linewidth=2,
+                     label='smooth train loss')
+            plt.plot(iters, scipy.signal.savgol_filter(self.val_loss, num, 3), '#8B4513', linestyle='--', linewidth=2,
+                     label='smooth val loss')
         except:
             pass
 
@@ -89,7 +92,7 @@ class LossHistory():
         plt.close("all")
 
 class EvalCallback():
-    def __init__(self, net, input_shape, num_classes, image_ids, dataset_path, log_dir, cuda, \
+    def __init__(self, net, input_shape, num_classes, image_ids, dataset_path, log_dir, cuda, train_name, \
             miou_out_path=".temp_miou_out", eval_flag=True, period=1):
         super(EvalCallback, self).__init__()
         
@@ -100,7 +103,7 @@ class EvalCallback():
         self.dataset_path       = dataset_path
         self.log_dir            = log_dir
         self.cuda               = cuda
-        self.miou_out_path      = miou_out_path
+        self.miou_out_path      = miou_out_path + '_' + train_name
         self.eval_flag          = eval_flag
         self.period             = period
         
