@@ -30,7 +30,7 @@ class UnetDataset(Dataset):
         #   从文件中读取图像
         #-------------------------------#
         jpg         = Image.open(os.path.join(os.path.join(self.dataset_path, "images"), name + ".jpg"))
-        png         = Image.open(os.path.join(os.path.join(self.dataset_path, "semantic/SegmentationClass"), name + ".png"))
+        png         = Image.open(os.path.join(os.path.join(self.dataset_path, "waterline/SegmentationClass"), name + ".png"))
         #-------------------------------#
         #   数据增强
         #-------------------------------#

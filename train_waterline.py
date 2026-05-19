@@ -17,7 +17,7 @@ from utils.callbacks_v2 import EvalCallback, LossHistory
 from utils.dataloader import UnetDataset, unet_dataset_collate
 from utils.utils import (download_weights, seed_everything, show_config,
                          worker_init_fn)
-from utils.utils_fit import fit_one_epoch
+from utils.utils_fit_waterline import fit_one_epoch
 
 '''
 训练自己的语义分割模型一定需要注意以下几点：
