@@ -14,7 +14,7 @@ import argparse
 from nets.unet import Unet
 from nets.unet_training import get_lr_scheduler, set_optimizer_lr, weights_init
 from utils.callbacks_v2 import EvalCallback, LossHistory
-from utils.dataloader import UnetDataset, unet_dataset_collate
+from utils.dataloader_waterline import UnetDataset, unet_dataset_collate
 from utils.utils import (download_weights, seed_everything, show_config,
                          worker_init_fn)
 from utils.utils_fit_waterline import fit_one_epoch
@@ -453,7 +453,7 @@ if __name__ == "__main__":
         if epoch_step == 0 or epoch_step_val == 0:
             raise ValueError("数据集过小，无法继续进行训练，请扩充数据集。")
 
-        train_dataset   = UnetDataset(train_lines, input_shape, num_classes, False, VOCdevkit_path)
+        train_dataset   = UnetDataset(train_lines, input_shape, num_classes, True, VOCdevkit_path)
         val_dataset     = UnetDataset(val_lines, input_shape, num_classes, False, VOCdevkit_path)
         
         if distributed:
@@ -478,7 +478,8 @@ if __name__ == "__main__":
         #----------------------#
         if local_rank == 0:
             eval_callback   = EvalCallback(net=model, input_shape=input_shape, num_classes=num_classes, image_ids=val_lines, dataset_path=VOCdevkit_path,
-                                           log_dir=log_dir, cuda=Cuda, train_name=args.wandb_name, eval_flag=eval_flag, period=eval_period, local_rank=local_rank)
+                                           log_dir=log_dir, cuda=Cuda, train_name=args.wandb_name, eval_flag=eval_flag, period=eval_period, local_rank=local_rank,
+                                           eval_type="waterline", gt_label_dir="waterline/SegmentationClass", class_names=["background", "free-space"])
         else:
             eval_callback   = None
         
