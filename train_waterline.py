@@ -453,7 +453,7 @@ if __name__ == "__main__":
         if epoch_step == 0 or epoch_step_val == 0:
             raise ValueError("数据集过小，无法继续进行训练，请扩充数据集。")
 
-        train_dataset   = UnetDataset(train_lines, input_shape, num_classes, False, VOCdevkit_path)
+        train_dataset   = UnetDataset(train_lines, input_shape, num_classes, True, VOCdevkit_path)
         val_dataset     = UnetDataset(val_lines, input_shape, num_classes, False, VOCdevkit_path)
         
         if distributed:
