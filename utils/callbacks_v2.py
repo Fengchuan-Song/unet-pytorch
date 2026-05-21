@@ -94,7 +94,8 @@ class LossHistory():
 
 class EvalCallback():
     def __init__(self, net, input_shape, num_classes, image_ids, dataset_path, log_dir, cuda,
-                 local_rank, train_name, miou_out_path=".temp_miou_out", eval_flag=True, period=1):
+                 local_rank, train_name, miou_out_path=".temp_miou_out", eval_flag=True, period=1,
+                 eval_type="semantic", gt_label_dir="semantic/SegmentationClass", class_names=None):
         super(EvalCallback, self).__init__()
 
         self.net = net
@@ -108,7 +109,9 @@ class EvalCallback():
         self.eval_flag = eval_flag
         self.period = period
         self.local_rank = local_rank
-        self.class_name = ["background", "pier", "buoy", "sailor", "ship", "boat", "vessel", "kayak", "free-space"]
+        self.eval_type = eval_type
+        self.gt_label_dir = gt_label_dir
+        self.class_name = class_names or ["background", "pier", "buoy", "sailor", "ship", "boat", "vessel", "kayak", "free-space"]
         self.object_class_name = ["background", "pier", "buoy", "sailor", "ship", "boat", "vessel", "kayak"]
         self.driverable_area_class_name = ["background", "free-space"]
 
@@ -181,7 +184,7 @@ class EvalCallback():
     def _save_remapped_miou_pngs(self, gt_dir, pred_dir, object_gt_dir, object_pred_dir,
                                  driverable_area_gt_dir, driverable_area_pred_dir):
         for image_id in self.image_ids:
-            gt = np.array(Image.open(os.path.join(gt_dir, 'semantic/SegmentationClass/' + image_id + ".png")))
+            gt = np.array(Image.open(os.path.join(gt_dir, self.gt_label_dir, image_id + ".png")))
             pred = np.array(Image.open(os.path.join(pred_dir, image_id + ".png")))
 
             object_gt = self._remap_object_segmentation(gt)
@@ -222,6 +225,42 @@ class EvalCallback():
                 image.save(os.path.join(pred_dir, image_id + ".png"))
 
             print("Calculate miou.")
+            if self.eval_type == "waterline":
+                _, IoUs, _, _ = compute_mIoU(
+                    os.path.join(gt_dir, self.gt_label_dir), pred_dir, self.image_ids,
+                    self.num_classes, self.class_name
+                )
+                temp_miou = np.nanmean(IoUs) * 100
+
+                self.mious.append(temp_miou)
+                self.epoches.append(epoch)
+
+                with open(os.path.join(self.log_dir, "epoch_miou.txt"), 'a') as f:
+                    f.write("Waterline segmentation IoU:")
+                    f.write('\n')
+                    for index in range(len(self.class_name)):
+                        f.write(f"{self.class_name[index]}: {IoUs[index] * 100}")
+                        f.write('\n')
+                    f.write(str(temp_miou))
+                    f.write("\n")
+
+                plt.figure()
+                plt.plot(self.epoches, self.mious, 'red', linewidth=2, label='train miou')
+
+                plt.grid(True)
+                plt.xlabel('Epoch')
+                plt.ylabel('Miou')
+                plt.title('A Miou Curve')
+                plt.legend(loc="upper right")
+
+                plt.savefig(os.path.join(self.log_dir, "epoch_miou.png"))
+                plt.cla()
+                plt.close("all")
+
+                print("Get miou of waterline segmentation done.")
+                shutil.rmtree(self.miou_out_path)
+                return
+
             self._save_remapped_miou_pngs(
                 gt_dir, pred_dir, object_gt_dir, object_pred_dir,
                 driverable_area_gt_dir, driverable_area_pred_dir
